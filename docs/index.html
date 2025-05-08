@@ -15,9 +15,22 @@
         display:flex; align-items:center; justify-content:center;
         background:rgba(0,0,0,0.8); z-index:1000;
       ">
+    <div>
+      <p style="color:white; text-align:center; margin-bottom:1em;">
+        このブラウザではUnity WebGLがサポートされていません。
+        <br>外部ブラウザで開くか、Unityのネイティブクライアントをお使いください。
+      </p>
+      <button id="open-external" style="
+            padding:0.75em 1.5em; font-size:1em; border:none;
+            border-radius:.5em; background:#2196F3; color:white;
+          ">
+        外部ブラウザで開く
+      </button>
+    </div>
     <button id="start-button" style="
           padding:1em 2em; font-size:1.5em; border:none;
           border-radius:.5em; background:#4CAF50; color:white;
+          display:none;
         ">
       ▶ ゲームを開始
     </button>
@@ -43,60 +56,68 @@
   <!-- Unity warning banner handler -->
   <script>
     function unityShowBanner(msg, type) {
-      const banner = document.querySelector('#unity-warning');
-      function update() {
-        banner.style.display = banner.children.length ? 'block' : 'none';
-      }
-      const div = document.createElement('div');
-      div.innerHTML = msg;
-      banner.appendChild(div);
-      if (type === 'error') div.style = 'background:red;padding:10px;';
-      else if (type === 'warning') div.style = 'background:yellow;padding:10px;';
-      setTimeout(() => { banner.removeChild(div); update(); }, type === 'error' ? 0 : 5000);
-      update();
+      const banner = document.getElementById('unity-warning');
+      banner.innerHTML = `<div style="background:${type==='error'? 'red':'yellow'}; padding:10px;">${msg}</div>`;
+      banner.style.display = 'block';
     }
   </script>
 
-  <!-- Start Button Logic: resume audio & load Unity -->
+  <!-- Start Button Logic & Fallback -->
   <script>
-    document.getElementById('start-button').addEventListener('click', () => {
-      // Resume AudioContext on user gesture
+    const isDiscordEmbed = navigator.userAgent.includes('Discord');
+
+    const btnExternal = document.getElementById('open-external');
+    const btnStart = document.getElementById('start-button');
+    const overlay = document.getElementById('start-overlay');
+
+    if (!isDiscordEmbed) {
+      // 通常ブラウザならゲーム開始ボタンを表示
+      btnExternal.style.display = 'none';
+      btnStart.style.display = 'block';
+    }
+
+    // 外部ブラウザで開くリンク
+    btnExternal.addEventListener('click', () => {
+      window.open(window.location.href, '_blank');
+    });
+
+    btnStart.addEventListener('click', () => {
+      // 1) Resume AudioContext
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
         const ctx = new AudioCtx();
         if (ctx.state === 'suspended') ctx.resume();
       }
 
-      // Hide overlay, show Unity container
-      document.getElementById('start-overlay').style.display = 'none';
+      // 2) Hide overlay, show Unity container
+      overlay.style.display = 'none';
       document.getElementById('unity-container').style.display = 'block';
 
-      // Load Unity loader
-      const script = document.createElement('script');
-      script.src = 'Build/Build.loader.js';
-      script.onload = () => {
+      // 3) Load Unity loader
+      const loaderScript = document.createElement('script');
+      loaderScript.src = 'Build/Build.loader.js';
+      loaderScript.onload = () => {
         createUnityInstance(
           document.getElementById('unity-canvas'),
           {
-            dataUrl:         'Build/Build.data',
-            frameworkUrl:    'Build/Build.framework.js',
-            codeUrl:         'Build/Build.wasm',
+            dataUrl: 'Build/Build.data',
+            frameworkUrl: 'Build/Build.framework.js',
+            codeUrl: 'Build/Build.wasm',
             streamingAssetsUrl: 'StreamingAssets',
-            companyName:     'DefaultCompany',
-            productName:     'activity-test',
-            productVersion:  '0.1',
-            showBanner:      unityShowBanner
+            companyName: 'DefaultCompany',
+            productName: 'activity-test',
+            productVersion: '0.1',
+            showBanner: unityShowBanner
           },
           (progress) => {
-            document.getElementById('unity-progress-bar-full').style.width = (progress*100) + '%';
+            document.getElementById('unity-progress-bar-full').style.width = (progress*100)+'%';
           }
-        ).then((unityInstance) => {
-          // Hide loading bar, setup fullscreen
+        ).then(unityInstance => {
           document.getElementById('unity-loading-bar').style.display = 'none';
           document.getElementById('unity-fullscreen-button').onclick = () => unityInstance.SetFullscreen(1);
-        }).catch((err) => console.error(err));
+        }).catch(err => console.error(err));
       };
-      document.body.appendChild(script);
+      document.body.appendChild(loaderScript);
     });
   </script>
 </body>
