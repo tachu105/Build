@@ -9,22 +9,8 @@
 
     <!-- Discord Activity SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@discord/activity@latest/dist/activity.iife.js"></script>
-    <script>
-      const discordClient = new Discord.Activity.Client({
-        client_id: '1347106717011415061'
-      });
-      discordClient.on('ready', () => {
-        discordClient.createActivity({
-          details: 'Playing activity-test',
-          state:   'On GitHub Pages',
-          assets: {
-            large_image: '8195-v7',
-            large_text:  'Activity Test Demo'
-          }
-        });
-      });
-    </script>
   </head>
+
   <body>
     <!-- Start Overlay -->
     <div id="start-overlay" style="
@@ -57,49 +43,46 @@
       </div>
     </div>
 
-    <!-- Banner handler for unity warnings/errors -->
+    <!-- Unity warning banner handler -->
     <script>
       function unityShowBanner(msg, type) {
         const warningBanner = document.querySelector('#unity-warning');
-        function updateBannerVisibility() {
+        function update() {
           warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
         }
         const div = document.createElement('div');
         div.innerHTML = msg;
         warningBanner.appendChild(div);
-        if (type === 'error') {
-          div.style = 'background:red; padding:10px;';
-        } else {
-          if (type === 'warning') div.style = 'background:yellow; padding:10px;';
-          setTimeout(() => {
-            warningBanner.removeChild(div);
-            updateBannerVisibility();
-          }, 5000);
-        }
-        updateBannerVisibility();
+        if (type === 'error') div.style = 'background:red;padding:10px;';
+        else if (type === 'warning') div.style = 'background:yellow;padding:10px;';
+        setTimeout(() => { warningBanner.removeChild(div); update(); }, type === 'error' ? 0 : 5000);
+        update();
       }
     </script>
 
-    <!-- Start Button Logic: AudioContext resume & Unity loader -->
+    <!-- Start Button Logic: resume audio, load Unity, then send Discord activity -->
     <script>
+      // Create Discord client globally
+      const discordClient = new Discord.Activity.Client({ client_id: '1347106717011415061' });
+
       document.getElementById('start-button').addEventListener('click', () => {
-        // 1. Resume AudioContext via user gesture
+        // 1) Resume AudioContext via user gesture
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         if (AudioCtx) {
           const ctx = new AudioCtx();
           if (ctx.state === 'suspended') ctx.resume();
         }
 
-        // 2. Hide overlay, show Unity container
+        // 2) Hide overlay, show Unity container
         document.getElementById('start-overlay').style.display = 'none';
         document.getElementById('unity-container').style.display = 'block';
 
-        // 3. Dynamically load Unity loader script
-        const script = document.createElement('script');
-        script.src = 'Build/Build.loader.js';
-        script.onload = () => {
+        // 3) Dynamically load Unity loader script
+        const loaderScript = document.createElement('script');
+        loaderScript.src = 'Build/Build.loader.js';
+        loaderScript.onload = () => {
           createUnityInstance(
-            document.querySelector('#unity-canvas'),
+            document.getElementById('unity-canvas'),
             {
               dataUrl: 'Build/Build.data',
               frameworkUrl: 'Build/Build.framework.js',
@@ -111,19 +94,27 @@
               showBanner: unityShowBanner
             },
             (progress) => {
-              document.querySelector('#unity-progress-bar-full').style.width =
-                (100 * progress) + '%';
+              document.getElementById('unity-progress-bar-full').style.width = (100 * progress) + '%';
             }
-          ).then((unityInstance) => {
-            document.querySelector('#unity-loading-bar').style.display = 'none';
-            document.querySelector('#unity-fullscreen-button').onclick = () => {
-              unityInstance.SetFullscreen(1);
-            };
-          }).catch((err) => {
-            console.error(err);
-          });
+          )
+          .then(unityInstance => {
+            // Unity loaded
+            document.getElementById('unity-loading-bar').style.display = 'none';
+            document.getElementById('unity-fullscreen-button').onclick = () => unityInstance.SetFullscreen(1);
+
+            // 4) Send Discord activity after Unity is ready
+            discordClient.createActivity({
+              details: 'Playing activity-test',
+              state:   'In-Discord Voice Activity',
+              assets: {
+                large_image: '8195-v7',
+                large_text:  'Activity Test Demo'
+              }
+            });
+          })
+          .catch(err => { console.error(err); });
         };
-        document.body.appendChild(script);
+        document.body.appendChild(loaderScript);
       });
     </script>
   </body>
